@@ -92,6 +92,17 @@ $(function() {
     return pmf;
   }
 
+  // Return Cumulative Distribution Function given a PMF
+  function getCdf(pmf) {
+    var cdf = []
+    var cumsum = 0;
+    for (var i=0; i < pmf.length; i++) {
+      cumsum += pmf[i];
+      cdf.push(cumsum);
+    }
+    return cdf;
+  }
+
   // Make it pretty
   Highcharts.setOptions({
     chart: {
@@ -111,12 +122,11 @@ $(function() {
     plotOptions: {
       column: {     // For histogram
         pointPadding: 0,
-        borderWidth: 1,
+        borderWidth: 0.2,
         groupPadding: 0,
         shadow: false
       },
       series: {
-        name: 'Pr(X=x)',
         showInLegend: false
       }
     },
@@ -126,8 +136,18 @@ $(function() {
   });
 
   // Display logic
-  window.makePlot = function(funcname, dicestring) {
+  window.makePlot = function(funcname, dicestring, needCdf) {
+    if (dicestring.length === 0)
+      return;
     var dice = getDice(dicestring);
+    var data = getPmf(funcname.toLowerCase(), dice);
+    var yText = 'Pr(X=x)';
+    var yMax = null;
+    if (needCdf) {
+      data = getCdf(data);
+      yText = 'Pr(X\u2264x)'; // Pr(X <= x)
+      yMax = 1;
+    }
     $('#diceplot').highcharts({
         title: {
           text: funcname + '(' + dice.stringform + ')'
@@ -138,17 +158,19 @@ $(function() {
           }
         },
         yAxis: {
+          max: yMax,
           title: {
-            text: 'Pr(X=x)'
+            text: yText,
           }
         },
         series: [{
+            name: yText,
             pointStart: dice.minroll,
-            data: getPmf(funcname.toLowerCase(), getDice(dicestring))
+            data: data
         }]
     });
   }
 
   // Default on page load
-  window.makePlot("Sum", "2d6 + d20");
+  window.makePlot("Sum", "2d6", false);
 });
