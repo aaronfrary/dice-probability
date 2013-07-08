@@ -7,7 +7,7 @@
 
 /* Usage:
  Output goes to <div id="diceplot"></div>.
- Draw PDF by calling makePlot(funcname, dicestring)
+ Draw PMF by calling makePlot(funcname, dicestring)
  where funcname is 'Sum', 'Min', or 'Max'
  and dicestring denotes the dice to roll e.g. '3d6, 1d20'.
 */
@@ -39,9 +39,57 @@ $(function() {
     return dice;
   }
 
-  // Return Probability Density Function over function of dice roll
-  function getPdf(funcname, dice) {
-    // TODO: Math...
+  // Return PMF of Unif(1,n)
+  function unif(n) {
+    var pmf = []
+    for (var i=0; i < n; i++)
+      pmf.push(1/n);
+    return pmf;
+  }
+
+  // Return convolution of oldpmf with a new die roll
+  // NOTE: This is a highly specialized convolution function
+  // not useful outside this context
+  function convolute(oldpmf, sides, support) {
+    var pmf = [];
+    var cumsum = 0;
+    for (var z=0; z < support; z++)
+    {
+      if (z < oldpmf.length)
+        cumsum += oldpmf[z];
+      if (z >= sides)
+        cumsum -= oldpmf[z - sides];
+      pmf.push(cumsum / sides);
+    }
+    return pmf;
+  }
+
+  var funcmap = {
+    sum : convolute
+  }
+
+  // Return Probability Mass Function over function of dice roll
+  function getPmf(funcname, dice) {
+    var sides;
+    var pmf = [];
+    var minroll = 0;
+    var maxroll = 0;
+    var support = 1;
+    for (var d=0; d < dice.length; d++) // die type
+    {
+      sides = dice[d][1];
+      for (var r=0; r < dice[d][0]; r++) // times to roll
+      {
+        minroll += 1;
+        maxroll += sides;
+        support += sides - 1;
+        if (pmf.length === 0)   // base case
+          pmf = unif(sides);
+        else
+          pmf = funcmap[funcname](pmf, sides, support);
+      }
+    }
+    return pmf;
   }
 
   // Make it pretty
@@ -61,16 +109,19 @@ $(function() {
       plotBorderWidth: 1
     },
     plotOptions: {
-      // For histogram
-      column: {
+      column: {     // For histogram
         pointPadding: 0,
         borderWidth: 1,
         groupPadding: 0,
         shadow: false
       },
       series: {
+        name: 'Pr(X=x)',
         showInLegend: false
       }
+    },
+    xAxis: {
+      allowDecimals: false
     }
   });
 
@@ -93,12 +144,11 @@ $(function() {
         },
         series: [{
             pointStart: dice.minroll,
-            //data: getPdf(funcname, getDice(dicestring))
-            data: [.4,.4,.5,.7,1,.7,.5,.4,.4] //placeholder
+            data: getPmf(funcname.toLowerCase(), getDice(dicestring))
         }]
     });
   }
 
   // Default on page load
-  window.makePlot("Sum", "3d6 + d20");
+  window.makePlot("Sum", "2d6 + d20");
 });
