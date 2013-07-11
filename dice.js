@@ -8,7 +8,7 @@
 /* Usage:
  Output goes to <div id="diceplot"></div>.
  Draw PMF by calling makePlot(dist, funcname, dicestring)
- where dist is 'PDF', 'CDF', or 'SIG', funcname is 'Sum', 'Min', or 'Max',
+ where dist is 'PDF', 'CDF', or 'CCDF', funcname is 'Sum', 'Min', or 'Max',
  and dicestring denotes the dice to roll e.g. '3d6, 1d20'.
 */
 $(function() {
@@ -188,7 +188,7 @@ $(function() {
       yMax = 1;
       cmpchar = '\u2264'; // <=
       break;
-    case 'sig':
+    case 'ccdf':
       data = getSig(data);
       yMax = 1;
       cmpchar = '\u2265'; // >=
