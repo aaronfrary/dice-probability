@@ -46,7 +46,7 @@ $(function() {
   }
 
   // Return convolution of oldpmf with a new die roll
-  // NOTE: This is a highly specialized convolution function
+  // NOTE: This is a specialized convolution function
   // not useful outside this context
   // TODO: Abstract out commonalities with convomax, convomin
   function convolute(oldpmf, sides) {
@@ -64,6 +64,8 @@ $(function() {
     return pmf;
   }
 
+  // Not actually a convolution... Combines distributions when
+  // taking the Max of a random variable and a die roll.
   function convomax(oldpmf, sides) {
     var oldcdf = getCdf(oldpmf);
     var pmf = [];
@@ -82,6 +84,8 @@ $(function() {
     return pmf;
   }
 
+  // Not actually a convolution... Combines distributions when
+  // taking the Min of a random variable and a die roll.
   function convomin(oldpmf, sides) {
     var oldsig = getSig(oldpmf);
     var pmf = [];
@@ -103,7 +107,7 @@ $(function() {
     return cdf;
   }
 
-  // Return P(X >= x) for X~pmf
+  // Return P(X >= x) for X ~ pmf
   // TODO: factor out commonalities with getCdf
   function getSig(pmf) {
     var sig = []
@@ -115,6 +119,8 @@ $(function() {
     return sig;
   }
 
+  // Function to use for combining distributions depends on whether
+  // we are taking the sum, min, or max of the random variables.
   var funcmap = {
     sum : convolute,
     max : convomax,
@@ -139,7 +145,7 @@ $(function() {
     return pmf;
   }
 
-  // Make it pretty
+  // General options for display
   Highcharts.setOptions({
     chart: {
       defaultSeriesType: 'column',
@@ -171,7 +177,7 @@ $(function() {
     }
   });
 
-  // Display logic
+  // Call this to draw the plot
   window.makePlot = function(dist, funcname, dicestring) {
     // Process input
     if (dicestring.length === 0)
@@ -182,7 +188,8 @@ $(function() {
     if (funcname.toLowerCase() !== 'sum')
       dice.minroll = 1;
     dist = dist.toLowerCase();
-    switch (dist) {
+    switch (dist)
+    {
     case 'cdf':
       data = getCdf(data);
       yMax = 1;
