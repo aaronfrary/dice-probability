@@ -7,14 +7,18 @@
 
 /* Usage:
  Output goes to <div id="diceplot"></div>.
- Draw PMF by calling makePlot(dist, funcname, dicestring)
+ Draw PMF by calling makePlot(dist, funcname, dicestring, *setstring)
  where dist is 'PDF', 'CDF', or 'CCDF', funcname is 'Sum', 'Min', or 'Max',
  and dicestring denotes the dice to roll e.g. '3d6, 1d20'.
+ setstring is an optional argument needed to consider the number of dice
+ whose rolls are contained within a set of integers.
 */
 $(function() {
   "use strict"
 
-  // Parse string to get the dice we want to roll
+  /* STRING PARSING */
+
+  // Parse string to get the dice we want to roll.
   function getDice(s) {
     var pattern=/\d*d\d+/ig;
     var dice = [];
@@ -37,7 +41,63 @@ $(function() {
     return dice;
   }
 
-  // Return PMF of Unif(1,n)
+  // Parse string to get a set of unique integers in increasing order.
+  // Can accept individual numbers and ranges such as 4-6.
+  function getSet(s) {
+    var rangepatt=/\d+-\d+/ig;
+    var patt=/\d+/ig;
+    var set = [];
+    set.stringform = " {" + s + "}";   // for display
+    var rangestr, rg, low, high, eltstr, elt
+    // Get all ranges first
+    while ((rangestr=rangepatt.exec(s)) !== null)
+    {
+      rg   = rangestr[0].split('-');
+      low  = parseInt(rg[0]);
+      high = parseInt(rg[1]);
+      if (low > high)
+        continue;
+      for (var i=low; i <= high; i++)
+        if ($.inArray(i, set) < 0) set.push(i);
+    }
+    // Get remaining numbers
+    s = s.replace(rangepatt, "");
+    while ((eltstr=patt.exec(s)) !== null)
+    {
+      elt = parseInt(eltstr[0]);
+      if ($.inArray(elt, set) < 0)
+        set.push(elt);
+    }
+    // Sort ascending
+    return set.sort(function(a,b){return a-b});
+  }
+
+
+  /* BASIC PROBABILITY FUNCTIONS */
+
+  // Probability of rolling an member of ascending-sorted set 'set'
+  // on an 'n'-sided die.
+  function probInSet(n, set) {
+    for (var i=0; i < set.length; i++)
+      if (set[i] > n) break;
+    return i / n;
+  }
+
+  // Return PMF of Binomial distribution (standard algorithm)
+  function binomial(n,p) {
+    var pmf = [];
+    if (p >= 1) {
+      for (var i=0; i < n; i++) pmf.push(0);
+      pmf.push(1);
+      return pmf;
+    }
+    pmf.push(Math.pow(1-p, n));
+    for (var i=1; i <= n; i++)
+      pmf.push( pmf[pmf.length-1] * p*(n-i+1) / (i*(1-p)) );
+    return pmf;
+  }
+
+  // Return PMF of Unif(1,n) (discrete uniform distribution)
   function unif(n) {
     var pmf = []
     for (var i=0; i < n; i++)
@@ -45,11 +105,53 @@ $(function() {
     return pmf;
   }
 
+  // Return Cumulative Distribution Function given a PMF
+  function getCdf(pmf) {
+    var cdf = []
+    var cumsum = 0;
+    for (var i=0; i < pmf.length; i++) {
+      cumsum += pmf[i];
+      cdf.push(cumsum);
+    }
+    return cdf;
+  }
+
+  // Return P(X >= x) for X ~ pmf
+  // TODO: factor out commonalities with getCdf
+  function getSig(pmf) {
+    var sig = []
+    var cumsum = 1;
+    for (var i=0; i < pmf.length; i++) {
+      sig.push(cumsum);
+      cumsum -= pmf[i];
+    }
+    return sig;
+  }
+
+
+  /* CALCULATE PMF */
+
+  // Return convolution of two PMFs,
+  // if each have support {0...(length - 1)}
+  // TODO: Abstract out commonalities between all these silly convo-functions
+  function convolute(pmf1, pmf2) {
+    var newpmf = [];
+    var support = pmf1.length + pmf2.length - 1
+    for (var z=0; z < support; z++)
+    {
+      var cumsum = 0;
+      for (var j=0; j <= z; j++)
+        if (j < pmf1.length && (z-j) < pmf2.length)
+          cumsum += pmf1[j] * pmf2[z-j];
+      newpmf.push(cumsum);
+    }
+    return newpmf;
+  }
+
   // Return convolution of oldpmf with a new die roll
   // NOTE: This is a specialized convolution function
   // not useful outside this context
-  // TODO: Abstract out commonalities with convomax, convomin
-  function convolute(oldpmf, sides) {
+  function dieConvolute(oldpmf, sides) {
     var pmf = [];
     var support = oldpmf.length + sides - 1;
     var cumsum = 0;
@@ -96,39 +198,18 @@ $(function() {
     return pmf;
   }
 
-  // Return Cumulative Distribution Function given a PMF
-  function getCdf(pmf) {
-    var cdf = []
-    var cumsum = 0;
-    for (var i=0; i < pmf.length; i++) {
-      cumsum += pmf[i];
-      cdf.push(cumsum);
-    }
-    return cdf;
-  }
-
-  // Return P(X >= x) for X ~ pmf
-  // TODO: factor out commonalities with getCdf
-  function getSig(pmf) {
-    var sig = []
-    var cumsum = 1;
-    for (var i=0; i < pmf.length; i++) {
-      sig.push(cumsum);
-      cumsum -= pmf[i];
-    }
-    return sig;
-  }
-
   // Function to use for combining distributions depends on whether
   // we are taking the sum, min, or max of the random variables.
   var funcmap = {
-    sum : convolute,
+    sum : dieConvolute,
     max : convomax,
     min : convomin
   }
 
   // Return Probability Mass Function over function of dice roll
   function getPmf(funcname, dice) {
+    if (funcname === 'inset')
+      return getInSetPmf(dice);  // special case
     var sides;
     var pmf = [];
     for (var d=0; d < dice.length; d++) // die type
@@ -136,7 +217,7 @@ $(function() {
       sides = dice[d][1];
       for (var r=0; r < dice[d][0]; r++) // times to roll
       {
-        if (pmf.length === 0)   // base case
+        if (pmf.length === 0)  // base case
           pmf = unif(sides);
         else
           pmf = funcmap[funcname](pmf, sides);
@@ -144,6 +225,31 @@ $(function() {
     }
     return pmf;
   }
+
+  /* This case is a little different but actually simpler:
+   * usually we can just return a binomial distribution,
+   * for different die types we return a convolution of
+   * binomial distributions.
+  */
+  function getInSetPmf(dice) {
+    var pmf = [];
+    var rolls, sides, pr, newpmf;
+    for (var d=0; d < dice.length; d++) // die type
+    {
+      rolls = dice[d][0];
+      sides = dice[d][1];
+      pr = probInSet(sides, dice.set);
+      newpmf = binomial(rolls, pr);
+      if (pmf.length === 0)
+        pmf = newpmf;
+      else
+        pmf = convolute(pmf, newpmf);
+    }
+    return pmf;
+  }
+
+
+  /* HIGHCHARTS DISPLAY */
 
   // General options for display
   Highcharts.setOptions({
@@ -174,19 +280,33 @@ $(function() {
     },
     xAxis: {
       allowDecimals: false
+    },
+    exporting: {
+      filename: "dicechart"
     }
   });
 
   // Call this to draw the plot
-  window.makePlot = function(dist, funcname, dicestring) {
-    // Process input
+  window.makePlot = function(dist, funcname, dicestring, setstring) {
+    // Don't run on incomplete info
     if (dicestring.length === 0)
       return;
+    if (funcname.toLowerCase() === 'inset' && setstring.length === 0)
+      return;
+    // Process input
     var dice = getDice(dicestring);
+    if (funcname.toLowerCase() === 'inset')
+      dice.set = getSet(setstring);
+    else {
+      dice.set = [];
+      dice.set.stringform = "";
+    }
     var data = getPmf(funcname.toLowerCase(), dice);
     var yMax, cmpchar;
     if (funcname.toLowerCase() !== 'sum')
       dice.minroll = 1;
+    if (funcname.toLowerCase() === 'inset')
+      dice.minroll = 0;
     dist = dist.toLowerCase();
     switch (dist)
     {
@@ -212,7 +332,7 @@ $(function() {
     // Build display
     $('#diceplot').highcharts({
         title: {
-          text: funcname + '(' + dice.stringform + ')'
+          text: funcname + '(' + dice.stringform + ')' + dice.set.stringform
         },
         xAxis: {
           title: {
@@ -237,5 +357,5 @@ $(function() {
   }
 
   // Default on page load
-  window.makePlot("pdf", "Sum", "2d6");
+  window.makePlot("pdf", "Sum", "2d6", "");
 });
