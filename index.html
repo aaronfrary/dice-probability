@@ -1,0 +1,60 @@
+<html>
+<head>
+<title>Dice Probability</title>
+<meta charset="utf-8"/>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+<script src="http://code.highcharts.com/highcharts.js"></script>
+<script src="http://code.highcharts.com/modules/exporting.js"></script>
+<script src="dice.js"></script>
+</head>
+<body style="text-align:center;">
+
+<h1>Dice Probability</h1>
+
+<!-- Plot display -->
+<div id="diceplot" style="display:inline-block; max-width:96%; width:640px; height:480px;"></div>
+
+<br/><br/>
+<!-- Plot input -->
+<form onsubmit="diceUpdate(); return false;">
+  <select id="dist" onchange="diceUpdate()">
+    <option value="pmf" selected>Pr(X=x)</option>
+    <option value="cdf">Pr(X&le;x)</option>
+    <option value="ccdf">Pr(X&ge;x)</option>
+  </select>
+  for: X = <select id="funcname" onchange="diceUpdate()">
+           <option value="Sum" selected>Sum(</option>
+           <option value="Max">Max(</option>
+           <option value="Min">Min(</option>
+           <option value="InSet">InSet(</option>
+         </select>
+  <input id="dicestring" type="text" size="24" placeholder="e.g. 2d6 + 1d20"/> )
+  <input type="submit" value="show plot"/>
+  <!-- only show when 'InSet' is selected -->
+  <div id="set" title="InSet() counts how many dice come up as a number in the set">
+    <br/>
+    With set {
+    <input id="setstring" type="text" size="11" placeholder="e.g. 1,6, 18-20"/>
+    }
+  </div>
+</form>
+
+<script>
+// Whenever a change is needed
+function diceUpdate() {
+  if ($('#funcname').val() === "InSet") {
+    $('#set').show();
+  } else {
+    $('#set').hide()
+  }
+  makePlot($('#dist').val(), $('#funcname').val(),
+           $('#dicestring').val(), $('#setstring').val());
+}
+$(function(){diceUpdate();})
+</script>
+
+<br/>
+<small id="copyright">&copy; 2013 Aaron Graham-Horowitz</small>
+
+</body>
+</html>
